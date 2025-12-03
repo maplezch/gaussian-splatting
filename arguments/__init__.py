@@ -9,26 +9,33 @@
 # For inquiries contact  george.drettakis@inria.fr
 #
 
-from argparse import ArgumentParser, Namespace
-import sys
-import os
+#处理命令行参数
+
+from argparse import ArgumentParser, Namespace  #ArgumentParser 用于创建命令行参数解析器，Namespace 用于存储解析后的参数。
+import sys            #sys 模块提供了对解释器使用或维护的一些变量和函数的访问。
+import os              #os 模块提供了与操作系统进行交互的功能，例如处理文件路径等。
 
 class GroupParams:
     pass
 
 class ParamGroup:
     def __init__(self, parser: ArgumentParser, name : str, fill_none = False):
+        #在 Python 中，冒号 : 用来给变量、函数参数、返回值指定类型提示，不会影响代码运行，只是让代码更易读、便于 IDE/工具做类型检查。
         group = parser.add_argument_group(name)
+
         for key, value in vars(self).items():
-            shorthand = False
-            if key.startswith("_"):
+            shorthand = False   #是否使用简写参数
+            
+            if key.startswith("_"): #简写参数以 "_" 开头
                 shorthand = True
                 key = key[1:]
+
             t = type(value)
             value = value if not fill_none else None 
+
             if shorthand:
                 if t == bool:
-                    group.add_argument("--" + key, ("-" + key[0:1]), default=value, action="store_true")
+                    group.add_argument("--" + key, ("-" + key[0:1]), default=value, action="store_true")    #store_true 表示如果命令行中出现该参数，则将其值设为 True，否则为 False。
                 else:
                     group.add_argument("--" + key, ("-" + key[0:1]), default=value, type=t)
             else:
