@@ -9,47 +9,80 @@
 # For inquiries contact  george.drettakis@inria.fr
 #
 
-import os
-import torch
-from random import randint
+import os   #文件路径、环境变量、目录操作
+
+import torch    
+
+from random import randint  #生成随机整数
+
 from utils.loss_utils import l1_loss, ssim
+#l1_loss：L1 损失
+#ssim：结构相似性损失（衡量图像结构相似度）
+
 from gaussian_renderer import render, network_gui
-import sys
+#render:将 3D 高斯点渲染成 2D 图像
+#network_gui:用于与外部 GUI 进行通信的模块
+
+import sys  #命令行参数、Python 运行环境相关
+
 from scene import Scene, GaussianModel
+#Scene:管理数据集、相机参数、图像路径等
+#GaussianModel:高斯点参数模型
+
 from utils.general_utils import safe_state, get_expon_lr_func
-import uuid
-from tqdm import tqdm
-from utils.image_utils import psnr
-from argparse import ArgumentParser, Namespace
-from arguments import ModelParams, PipelineParams, OptimizationParams
+#safe_state:初始化随机数生成器
+#get_expon_lr_func:指数衰减学习率函数
+
+import uuid #生成唯一 ID（常用于实验编号、临时文件名）
+
+from tqdm import tqdm   #进度条显示库
+
+from utils.image_utils import psnr  #计算峰值信噪比（PSNR）指标,衡量渲染结果与 GT(Ground Truth（真实值 / 标准答案）) 的质量（越大越好）
+
+from argparse import ArgumentParser, Namespace  #解析命令行参数
+
+from arguments import ModelParams, PipelineParams, OptimizationParams   #模型结构参数、渲染管线参数、优化参数
+
 try:
-    from torch.utils.tensorboard import SummaryWriter
-    TENSORBOARD_FOUND = True
+    from torch.utils.tensorboard import SummaryWriter   #TensorBoard 日志记录器
+    TENSORBOARD_FOUND = True    #标志位
 except ImportError:
     TENSORBOARD_FOUND = False
 
 try:
-    from fused_ssim import fused_ssim
+    from fused_ssim import fused_ssim   #高效的 SSIM 计算函数
     FUSED_SSIM_AVAILABLE = True
 except:
     FUSED_SSIM_AVAILABLE = False
 
 try:
-    from diff_gaussian_rasterization import SparseGaussianAdam
+    from diff_gaussian_rasterization import SparseGaussianAdam  #稀疏高斯点 Adam 优化器
     SPARSE_ADAM_AVAILABLE = True
 except:
     SPARSE_ADAM_AVAILABLE = False
 
-def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoint_iterations, checkpoint, debug_from):
+#Adaptive Moment Estimation（自适应矩估计）
+#梯度尺寸自适应
+#动量平滑
 
-    if not SPARSE_ADAM_AVAILABLE and opt.optimizer_type == "sparse_adam":
+def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoint_iterations, checkpoint, debug_from):
+#dataset：数据集（相机、图像、深度等）
+#opt：优化参数（学习率、权重等）
+#checkpoint：断点恢复
+
+    if not SPARSE_ADAM_AVAILABLE and opt.optimizer_type == "sparse_adam":   #使用时选择了稀疏adam，则需要进行检查是否安装
         sys.exit(f"Trying to use sparse adam but it is not installed, please install the correct rasterizer using pip install [3dgs_accel].")
 
     first_iter = 0
+
     tb_writer = prepare_output_and_logger(dataset)
+
     gaussians = GaussianModel(dataset.sh_degree, opt.optimizer_type)
+
     scene = Scene(dataset, gaussians)
+
     gaussians.training_setup(opt)
+    
     if checkpoint:
         (model_params, first_iter) = torch.load(checkpoint)
         gaussians.restore(model_params, opt)
